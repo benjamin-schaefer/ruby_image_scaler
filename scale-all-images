@@ -1,0 +1,176 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+
+class ScaleAllImages
+  attr_reader :width, :height, :recursive, :path, :list, :ignore, :only, :backup
+
+  DEFAULT_FILE_TYPES = ['png', 'jpg', 'jpeg', 'gif', 'bmp']
+
+  def initialize(path = nil, options = {})
+    @width = Integer(options[:width] || input(:width))
+    @height = Integer(options[:height] || input(:height))
+    @recursive = options.fetch(:recursive) { false }
+    @list = options.fetch(:list) { false }
+    @ignore = options.fetch(:ignore) { '' }.split(' ')
+    @only = options.fetch(:only) { '' }.split(' ')
+    @path = path  || './'
+    @file_types = options.fetch(:file_types) { DEFAULT_FILE_TYPES }
+    @backup = options.fetch(:backup) { false}
+  end
+
+  def self.create(*args)
+    new(*args).tap { |obj| obj.scale_images }
+  end
+
+  def file_types
+      case @file_types
+      when String
+        @file_types.split(' ')
+      when Array
+        @file_types
+      else
+        fail ArgumentError
+      end
+  end
+
+  def input(key)
+    puts "#{key}:"
+    gets
+  end
+
+  def search_dir
+    @search_dir ||= begin
+      dir = "#{path}" 
+      dir << '/' unless dir.end_with? '/'
+      dir << '**/' if recursive
+      dir << '*.'
+      dir
+    end
+  end
+
+  def image_paths
+    image_paths = []
+
+    file_types.each do |f|
+      image_paths |= Dir["#{search_dir}#{f}"]
+    end
+    
+    return image_paths
+  end
+
+  def warn_unexpected_results
+    warn 'IGNORE and ONLY keywords can cause unexpected results. Press ENTER to continue or CTRL+C to cancel'
+    gets
+  end
+
+  def create_backup(img)
+    if system "cp #{img} #{img}.bk" 
+      puts "successfully created backup of #{img}" if list
+      true
+    else
+      puts "error at creating backup for #{img} - jump to next file" if list
+      false
+    end
+  end
+
+  def scale_images
+    success_cnt = 0;  #successfully scaled files
+    ignore_cnt = 0;   #ignored files
+
+    warn_uncexpected_results unless ignore.empty? || only.empty?
+    return puts 'no images found' if image_paths.length == 0 
+
+    image_paths.each do |img|  
+
+      if !ignore.empty? && ignore.any? { |i| img.include?(i) }
+        puts "-i ignore file #{img}" if list
+        ignore_cnt += 1
+        next
+      end
+
+      if !only.empty?
+        unless only.any? { |i| img.include?(i) }
+          puts "-o ignore file #{img}" if list
+          ignore_cnt += 1
+          next
+        end
+      end
+
+      if backup
+        next unless create_backup(img)
+      end
+      
+      if system "convert -scale #{width}x#{height} ./#{img} ./#{img}"
+        success_cnt+= 1
+        puts "successfully scaled #{img}" if list
+      end
+    end
+
+    puts "\n#{image_paths.length} images found" 
+    if success_cnt == 0
+      puts "no images scaled"
+    else
+      puts "#{success_cnt} images successfully scaled"
+    end
+    puts "#{ignore_cnt} images ignored"
+    puts "#{image_paths.length - ignore_cnt - success_cnt} errors"
+  end
+end
+
+options = {}
+
+optparse = OptionParser.new do |opts|
+  opts.banner = 'Usage: scale-all-images [options] path'
+  # width
+  opts.on('-w', '--width WIDTH', 'WIDTH to scale') do |width|
+    options[:width] = width
+  end
+  # height'')
+  opts.on('-h', '--height HEIGHT', 'HEIGHT to scale') do |height|
+    options[:height] = height
+  end
+  # recursive
+  opts.on('-r', '--recursive', 'run script recursively to all folders') do
+    options[:recursive] = true
+  end
+  # list filenames
+  opts.on('-l', '--list', 'list all filenames') do
+    options[:list] = true
+  end
+  # filetypes
+  opts.on('-f', '--filetypes FILETYPES', "list of allowed FILETYPES; default: \"#{ScaleAllImages::DEFAULT_FILE_TYPES.join(' ')}\"") do |file_types|
+    options[:file_types] = file_types
+  end
+  # blacklist
+  opts.on('-i', '--ignore KEYWORDS', 'ignore images which file paths contain KEYWORDS, separated by space; ignore has higher priority than only') do |ignore|
+    options[:ignore] = ignore
+  end
+  # whitelist
+  opts.on('-o', '--only KEYWORDS', 'only handle images which file paths contain KEYWORDS, separated by space; only has lower priority than ignore') do |only|
+    options[:only] = only
+  end
+  # backup
+  opts.on('-b', '--backup', 'keep copies of unscaled images, named like "imagename.jpg.bk"') do
+    options[:backup] = true
+  end
+  # TODO: restore
+  # help
+  opts.on('--help', 'Display this screen') do
+    puts opts
+    exit
+  end
+end
+
+optparse.parse!
+
+# img = ScaleAllImages.new(ARGV[0], options)
+# img.scale_images
+
+ScaleAllImages.create(ARGV[0], options)
+
+#ausführen: ruby <scriptname>
+#oder ausführbar machen:
+#in 1. Zeile: !/usr/bin/env ruby
+#chmod +x <scriptname>
+#in skript .rb-Endung entfernen
