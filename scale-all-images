@@ -15,10 +15,8 @@ class ScaleAllImages
     @ignore = options.fetch(:ignore) { '' }.split(' ')
     @only = options.fetch(:only) { '' }.split(' ')
     @path = path  || './'
-    p @path
     @file_types = options.fetch(:file_types) { DEFAULT_FILE_TYPES }
     @backup = options.fetch(:backup) { false}
-
   end
 
   def self.create(*args)
@@ -26,8 +24,8 @@ class ScaleAllImages
   end
 
   def scale_images
-    success_cnt = 0;  #successfully scaled files
-    ignore_cnt = 0;   #ignored files
+    success_cnt = 0;  # number of successfully scaled files
+    ignore_cnt = 0;   # number of ignored files
 
     warn_uncexpected_results unless ignore.empty? || only.empty?
     return puts 'no images found' if image_paths.length == 0 
@@ -53,7 +51,7 @@ class ScaleAllImages
       end
       
       if system "convert -scale #{width}x#{height} ./#{img} ./#{img}"
-        success_cnt+= 1
+        success_cnt += 1
         echo "successfully scaled #{img}"
       end
     end
@@ -125,6 +123,12 @@ private
 
   def echo(str)
     puts str if list
+  end
+
+  def check_ignore
+  end
+
+  def dheck_empty
   end
 
 end
